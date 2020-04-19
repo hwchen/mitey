@@ -7,6 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = { version = "1.5.0", features = ["attributes"] }
 http-types = "1.1.0"
-async-h1 = "1.0.2"
+async-h1 = { git = "https://github.com/hwchen/async-h1", branch = "minimize-deps" }
+futures-io = "0.3.4"
+
+[dev-dependencies]
+async-std = { version = "1.5.0", features = ["attributes"] }
