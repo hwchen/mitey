@@ -10,10 +10,17 @@ use tokio::sync::Mutex;
 
 /// State placeholder
 #[derive(Debug, Clone)]
-pub struct State(pub String);
+pub struct State(String);
+
+impl State {
+    pub fn init(str: String) -> Arc<Mutex<State>> {
+        Arc::new(Mutex::new(State(str)))
+    }
+}
 
 /// placeholder
 /// to become mitey-router
+/// Could use a RouteBuilder
 #[derive(Debug, Clone)]
 pub struct Router<F, Fut>
 where
@@ -35,6 +42,11 @@ where
     pub fn add_route(&mut self, path: &str, endpoint: F) {
         self.routes.push((path.to_string(), Box::new(endpoint)));
     }
+
+    pub fn init(self) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(self))
+    }
+
 }
 
 pub async fn accept<RW, F, Fut>(
@@ -59,7 +71,6 @@ where
 
             for route in &router.routes {
                 if route.0 == path {
-                    println!("hit");
                     return route.1(req).await;
                 }
             };

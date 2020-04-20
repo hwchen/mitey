@@ -3,18 +3,15 @@ use async_std::stream::StreamExt;
 use async_std::task;
 use http_types::{Request, Response, StatusCode};
 use mitey::{Router, State};
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[async_std::main]
 async fn main() -> http_types::Result<()> {
     // State (database)
-    let state = Arc::new(Mutex::new(State("mitey mitey".to_owned())));
+    let state = State::init("mitey-state".to_owned());
 
     // Routing
     let mut router = Router::new();
     router.add_route("/one", |_req: Request| async {
-        println!("hit");
         let mut res = Response::new(StatusCode::Ok);
         res.insert_header("Content-Type", "text/plain")?;
         res.set_body("mitey: small and mighty");
@@ -26,7 +23,7 @@ async fn main() -> http_types::Result<()> {
     //    res.set_body("mitey: minimal code, maximal power");
     //    Ok(res)
     //});
-    let router = Arc::new(Mutex::new(router));
+    let router = router.init();
 
     // Now tcp IO
 
