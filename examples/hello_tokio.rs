@@ -1,18 +1,18 @@
 use futures_core::task::{Context, Poll};
 use std::io;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::stream::StreamExt;
 use tokio::task;
-use tokio_util::compat::{Compat, Tokio02AsyncReadCompatExt, Tokio02AsyncWriteCompatExt};
+use tokio_util::compat::{Compat, Tokio02AsyncReadCompatExt};
 use http_types::{Request, Response, StatusCode};
 use mitey::{Router, State};
 
 //use futures_io::{AsyncRead, AsyncWrite};
 //use tokio::io::{AsyncRead as TRead, AsyncWrite as TWrite};
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> http_types::Result<()> {
     // State (database)
     let state = State::init("mitey-state".to_owned());
@@ -27,7 +27,7 @@ async fn main() -> http_types::Result<()> {
 
     // A bit inconvenient, but create the tcp connection manually.
     // This allows the decoupling of the web lib (mitey) from the runtime
-    let listener = TcpListener::bind(("127.0.0.1", 8080)).await?;
+    let mut listener = TcpListener::bind(("127.0.0.1", 8080)).await?;
 
     let addr = listener.local_addr()?;
     println!("mitey serving at {}", addr);
@@ -36,7 +36,7 @@ async fn main() -> http_types::Result<()> {
     while let Some(stream) = incoming.next().await {
         let stream = stream?;
         let stream = stream.compat();
-        let stream = WrapStream(Arc::new(stream));
+        let stream = WrapStream(Arc::new(Mutex::new(stream)));
 
         // TODO fix hack
         let addr = format!("http://{}", addr);
@@ -70,7 +70,7 @@ async fn handle_one(_req: Request) -> http_types::Result<Response> {
 
 /// Needed because async-std tcpstream impl Clone, but tokio tcpstream doesn't?
 #[derive(Clone)]
-struct WrapStream(Arc<Compat<TcpStream>>);
+struct WrapStream(Arc<Mutex<Compat<TcpStream>>>);
 
 impl futures_io::AsyncRead for WrapStream {
     fn poll_read(
@@ -78,7 +78,7 @@ impl futures_io::AsyncRead for WrapStream {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut &*self.0).poll_read(cx, buf)
+        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_read(cx, buf)
     }
 }
 
@@ -88,14 +88,14 @@ impl futures_io::AsyncWrite for WrapStream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut &*self.0).poll_write(cx, buf)
+        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut &*self.0).poll_flush(cx)
+        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_flush(cx)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut &*self.0).poll_close(cx)
+        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_close(cx)
     }
 }
