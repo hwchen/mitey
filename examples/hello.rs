@@ -10,25 +10,15 @@ async fn main() -> http_types::Result<()> {
     let state = State::init("mitey-state".to_owned());
 
     // Routing
+    // not a real router, so can't add another route
     let mut router = Router::new();
-    router.add_route("/one", |_req: Request| async {
-        let mut res = Response::new(StatusCode::Ok);
-        res.insert_header("Content-Type", "text/plain")?;
-        res.set_body("mitey: small and mighty");
-        Ok(res)
-    });
-    //router.add_route("two", |_req| async {
-    //    let mut res = Response::new(StatusCode::Ok);
-    //    res.insert_header("Content-Type", "text/plain")?;
-    //    res.set_body("mitey: minimal code, maximal power");
-    //    Ok(res)
-    //});
+    router.add_route("/one", handle_one);
     let router = router.init();
 
     // Now tcp IO
 
     // A bit inconvenient, but create the tcp connection manually.
-    // This allows the decoupling from the runtime
+    // This allows the decoupling of the web lib (mitey) from the runtime
     let listener = TcpListener::bind(("127.0.0.1", 8080)).await?;
 
     let addr = listener.local_addr()?;
@@ -53,4 +43,11 @@ async fn main() -> http_types::Result<()> {
     }
 
     Ok(())
+}
+
+async fn handle_one(_req: Request) -> http_types::Result<Response> {
+    let mut res = Response::new(StatusCode::Ok);
+    res.insert_header("Content-Type", "text/plain")?;
+    res.set_body("mitey: small and mighty");
+    Ok(res)
 }
