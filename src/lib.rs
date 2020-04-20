@@ -8,6 +8,9 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// compatibility with tokio streams
+pub mod compat;
+
 /// State placeholder
 #[derive(Debug, Clone)]
 pub struct State(String);

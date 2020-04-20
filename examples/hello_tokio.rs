@@ -1,13 +1,10 @@
-use futures_core::task::{Context, Poll};
-use std::io;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::stream::StreamExt;
 use tokio::task;
-use tokio_util::compat::{Compat, Tokio02AsyncReadCompatExt};
 use http_types::{Request, Response, StatusCode};
+
 use mitey::{Router, State};
+use mitey::compat::TokioCompatStream;
 
 //use futures_io::{AsyncRead, AsyncWrite};
 //use tokio::io::{AsyncRead as TRead, AsyncWrite as TWrite};
@@ -35,8 +32,7 @@ async fn main() -> http_types::Result<()> {
     let mut incoming = listener.incoming();
     while let Some(stream) = incoming.next().await {
         let stream = stream?;
-        let stream = stream.compat();
-        let stream = WrapStream(Arc::new(Mutex::new(stream)));
+        let stream = TokioCompatStream::wrap(stream);
 
         // TODO fix hack
         let addr = format!("http://{}", addr);
@@ -68,34 +64,3 @@ async fn handle_one(_req: Request) -> http_types::Result<Response> {
     Ok(res)
 }
 
-/// Needed because async-std tcpstream impl Clone, but tokio tcpstream doesn't?
-#[derive(Clone)]
-struct WrapStream(Arc<Mutex<Compat<TcpStream>>>);
-
-impl futures_io::AsyncRead for WrapStream {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_read(cx, buf)
-    }
-}
-
-impl futures_io::AsyncWrite for WrapStream {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_write(cx, buf)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_flush(cx)
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut *(&*self.0).lock().unwrap()).poll_close(cx)
-    }
-}
