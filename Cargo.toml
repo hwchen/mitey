@@ -10,6 +10,8 @@ edition = "2018"
 http-types = "1.1.0"
 async-h1 = { git = "https://github.com/hwchen/async-h1", branch = "minimize-deps" }
 futures-io = "0.3.4"
+pin-project-lite = "0.1.4"
+tokio = { version = "0.2.18", features = ["sync"] }
 
 [dev-dependencies]
 async-std = { version = "1.5.0", features = ["attributes"] }

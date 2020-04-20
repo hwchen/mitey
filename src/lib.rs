@@ -3,57 +3,10 @@
 // Using a patched version of async_h1 that uses futures only, no async_std.
 
 use futures_io::{AsyncRead, AsyncWrite};
-use http_types::{Response, StatusCode};
-use std::sync::{Arc, Mutex};
-
-pub struct Mitey {
-    state: Arc<Mutex<State>>,
-    #[allow(dead_code)]
-    router: Router,
-}
-
-impl Mitey {
-    pub fn new() -> MiteyBuilder {
-        MiteyBuilder::new()
-    }
-
-    pub fn state(&self) -> Arc<Mutex<State>> {
-        self.state.clone()
-    }
-}
-
-pub struct MiteyBuilder {
-    state: Option<State>,
-    router: Router,
-}
-
-impl MiteyBuilder {
-    fn new() -> Self {
-        Self {
-            state: None,
-            router: Router::new(),
-        }
-    }
-
-    pub fn with_state(&mut self, state: State) -> &mut Self {
-        self.state = Some(state);
-        self
-    }
-
-    /// takes path and async fn -> Response
-    pub fn add_route(&mut self, path: &str) -> &mut Self {
-        self.router.add_route(path);
-        self
-    }
-
-    /// finalize and build
-    pub fn build(&self) -> Mitey {
-        Mitey {
-            state: self.state.clone().map(|s|Arc::new(Mutex::new(s))).expect("For now state is required"),
-            router: self.router.clone(),
-        }
-    }
-}
+use http_types::{Request, Response, StatusCode};
+use std::future::Future;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// State placeholder
 #[derive(Debug, Clone)]
@@ -62,35 +15,57 @@ pub struct State(pub String);
 /// placeholder
 /// to become mitey-router
 #[derive(Debug, Clone)]
-struct Router {
-    paths: Vec<String>,
+pub struct Router<F, Fut>
+where
+    F: Fn(Request) -> Fut,
+    Fut: Future<Output = http_types::Result<Response>>,
+{
+    routes: Vec<(String, Box<F>)>,
 }
 
-impl Router {
+impl<F, Fut> Router<F, Fut>
+where
+    F: Fn(Request) -> Fut,
+    Fut: Future<Output = http_types::Result<Response>>,
+{
     pub fn new() -> Self {
-        Self {
-            paths: vec![],
-        }
+        Self { routes: vec![] }
     }
 
-    pub fn add_route(&mut self, path: &str) {
-        self.paths.push(path.to_string());
+    pub fn add_route(&mut self, path: &str, endpoint: F) {
+        self.routes.push((path.to_string(), Box::new(endpoint)));
     }
 }
 
-pub async fn accept<RW>(addr: String, stream: RW, state: Arc<Mutex<State>>) -> http_types::Result<()>
-    where RW: AsyncRead + AsyncWrite + Clone + Send + Sync + Unpin + 'static
+pub async fn accept<RW, F, Fut>(
+    addr: String,
+    stream: RW,
+    state: Arc<Mutex<State>>,
+    router: Arc<Mutex<Router<F, Fut>>>,
+) -> http_types::Result<()>
+where
+    RW: AsyncRead + AsyncWrite + Clone + Send + Sync + Unpin + 'static,
+    F: Fn(Request) -> Fut,
+    Fut: Future<Output = http_types::Result<Response>>,
 {
     println!("connection received: {}", addr);
-    println!("state: {:?}", state.lock().unwrap());
+    println!("state: {:?}", state.lock().await);
 
-    async_h1::accept(&addr, stream.clone(), |_req| async move {
-        let mut res = Response::new(StatusCode::Ok);
-        res.insert_header("Content-Type", "text/plain")?;
-        res.set_body("mitey: small and mighty | ");
-        Ok(res)
-    })
-    .await?;
+    async_h1::accept(&addr, stream.clone(), |req: Request| async {
+            let path = req.url().path();
+            println!("{:?}", path);
+
+            let router = router.lock().await;
+
+            for route in &router.routes {
+                if route.0 == path {
+                    println!("hit");
+                    return route.1(req).await;
+                }
+            };
+
+            Ok(Response::new(StatusCode::Ok))
+    }).await?;
+
     Ok(())
 }
-
