@@ -49,5 +49,12 @@ async fn handle_one(_req: Request) -> http_types::Result<Response> {
     let mut res = Response::new(StatusCode::Ok);
     res.insert_header("Content-Type", "text/plain")?;
     res.set_body("mitey: small and mighty");
+
+    //task::spawn_blocking(|| {
+    task::block_on(async {
+        println!("long-running task started");
+        std::thread::sleep(std::time::Duration::from_millis(10_000));
+        println!("long-running task ended");
+    });
     Ok(res)
 }
