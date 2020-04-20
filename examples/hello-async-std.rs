@@ -16,26 +16,21 @@ async fn main() -> http_types::Result<()> {
     let router = router.init();
 
     // Now tcp IO
-
-    // A bit inconvenient, but create the tcp connection manually.
-    // This allows the decoupling of the web lib (mitey) from the runtime
     let listener = TcpListener::bind(("127.0.0.1", 8080)).await?;
-
     let addr = listener.local_addr()?;
+    let addr = format!("http://{}", addr); // TODO fix hack
     println!("mitey serving at {}", addr);
 
     let mut incoming = listener.incoming();
     while let Some(stream) = incoming.next().await {
         let stream = stream?;
 
-        // TODO fix hack
-        let addr = format!("http://{}", addr);
-
+        let addr = addr.clone();
         let state = state.clone();
         let router = router.clone();
 
         // Now spawn into mitey handler, with all components
-        task::spawn( async {
+        task::spawn( async move {
             if let Err(err) = mitey::accept(addr, stream, state, router).await {
                 eprintln!("{}", err);
             }

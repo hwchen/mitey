@@ -6,9 +6,6 @@ use http_types::{Request, Response, StatusCode};
 use mitey::{Router, State};
 use mitey::compat::TokioCompatStream;
 
-//use futures_io::{AsyncRead, AsyncWrite};
-//use tokio::io::{AsyncRead as TRead, AsyncWrite as TWrite};
-
 #[tokio::main]
 async fn main() -> http_types::Result<()> {
     // State (database)
