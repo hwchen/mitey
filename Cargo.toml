@@ -19,3 +19,6 @@ tokio-util = { version = "0.3.1", features = ["compat"] }
 [dev-dependencies]
 async-std = { version = "1.5.0", features = ["attributes"] }
 tokio = { version = "0.2.0", features = ["full"] }
+smol = { path = "../smol" }
+piper = "0.1.1"
+anyhow = "1.0.28"
